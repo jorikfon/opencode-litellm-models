@@ -141,8 +141,10 @@ export const LitellmModels: Plugin = async (_input, options = {}) => {
         })
         // Прописанное руками в opencode.json выигрывает у найденного.
         provider.models = { ...discovered, ...(provider.models ?? {}) }
-      } catch {
+      } catch (err) {
         // Провайдер без моделей не поднимется вовсе — при любой беде оставляем конфиг как есть.
+        // Молчать нельзя: снаружи это выглядит как «Provider not found», причина не видна.
+        console.warn(`[litellm] ${providerID}: модели не получены (${err}); конфиг оставлен как есть`)
       }
     },
 
