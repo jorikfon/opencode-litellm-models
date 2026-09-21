@@ -144,7 +144,7 @@ export const LitellmModels: Plugin = async (_input, options = {}) => {
       } catch (err) {
         // Провайдер без моделей не поднимется вовсе — при любой беде оставляем конфиг как есть.
         // Молчать нельзя: снаружи это выглядит как «Provider not found», причина не видна.
-        console.warn(`[litellm] : could not read the model list (); leaving the config as it is`)
+        console.warn(`[litellm] ${providerID}: could not read the model list (${err}); leaving the config as it is`)
       }
     },
 
