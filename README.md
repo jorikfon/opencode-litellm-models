@@ -17,9 +17,11 @@ export { LitellmModels } from "/path/to/opencode-litellm-models/index.ts"
 ```
 
 On Windows the layout is the same: opencode looks in `%USERPROFILE%\.config\opencode\plugin\`
-(or under `$XDG_CONFIG_HOME` when it is set). Point the re-export at the clone with forward
-slashes, or with a URL: `export { LitellmModels } from "file:///C:/Users/you/opencode-litellm-models/index.ts"`.
-The plugin itself is platform-agnostic — it only talks HTTP and edits the loaded config.
+(or under `$XDG_CONFIG_HOME` when it is set), and the re-export takes a URL:
+`export { LitellmModels } from "file:///C:/Users/you/opencode-litellm-models/index.ts"`.
+The plugin itself is platform-agnostic — it only talks HTTP and edits the loaded config. This
+was developed and tested on macOS; the Windows path above follows opencode's own resolution
+(`$XDG_CONFIG_HOME`, else the home directory plus `.config`) rather than a test run.
 
 Then declare the provider:
 
