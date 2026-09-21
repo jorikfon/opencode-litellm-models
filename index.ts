@@ -147,9 +147,10 @@ export const LitellmModels: Plugin = async (_input, options = {}) => {
     },
 
     async "chat.params"(input, output) {
-      if (input.model.providerID !== providerID) return
-      const allowed = allowedEffort(efforts.get(input.model.id), output.options?.reasoningEffort)
-      if (allowed === undefined) delete output.options?.reasoningEffort
+      if (input.model.providerID !== providerID || !output.options) return
+      const known = efforts.get(input.model.id) ?? efforts.get(input.model.api?.id as string)
+      const allowed = allowedEffort(known, output.options.reasoningEffort)
+      if (allowed === undefined) delete output.options.reasoningEffort
       else output.options.reasoningEffort = allowed
     },
   }

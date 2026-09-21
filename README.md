@@ -9,11 +9,19 @@ actually has (unlike `/v1/model/info`, whose output depends on the key and is of
 
 ## Install
 
+Put the plugin where opencode looks for local ones — `~/.config/opencode/plugin/litellm.ts` for
+every project, or `.opencode/plugin/litellm.ts` for one:
+
+```ts
+export { LitellmModels } from "/path/to/opencode-litellm-models/index.ts"
+```
+
+Then declare the provider:
+
 ```jsonc
 // opencode.json
 {
   "$schema": "https://opencode.ai/config.json",
-  "plugin": ["opencode-litellm-models"],
   "provider": {
     "litellm": {
       "npm": "@ai-sdk/openai-compatible",
@@ -33,9 +41,14 @@ discovered, so pinning one model with custom limits still works.
 
 Check it: `opencode models litellm`.
 
+Once the package is published, `"plugin": ["opencode-litellm-models"]` in `opencode.json` replaces
+the local file.
+
 ## Options
 
-Pass options with the array form: `"plugin": [["opencode-litellm-models", { "provider": "my-litellm" }]]`.
+Options come from the array form of the `plugin` entry —
+`"plugin": [["opencode-litellm-models", { "provider": "my-litellm" }]]` — or, with a local file,
+by passing them yourself: `export const Litellm = (input, opts) => LitellmModels(input, { ...opts, provider: "my-litellm" })`.
 
 | option | default | meaning |
 |---|---|---|
