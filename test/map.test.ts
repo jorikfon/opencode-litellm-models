@@ -1,6 +1,6 @@
 import { test } from "node:test"
 import assert from "node:assert/strict"
-import { allowedEffort, effortsByModel, isChatGroup, proxyRoot, toModel, toModels, type LiteLLMGroup } from "../index.ts"
+import { allowedEffort, effortsByModel, fetchGroups, isChatGroup, proxyRoot, toModel, toModels, type LiteLLMGroup } from "../index.ts"
 
 // Срез живого ответа LiteLLM /model_group/info, вместе с грязью:
 // mode=null у рабочей чат-модели, лимиты null, эмбеддинги в общем списке.
@@ -58,4 +58,17 @@ test("уровень вне объявленного набора не уход�
 test("model_group/info берётся из корня прокси, а не из /v1", () => {
   assert.equal(proxyRoot("https://litellm.example/v1"), "https://litellm.example")
   assert.equal(proxyRoot("https://litellm.example/"), "https://litellm.example")
+})
+
+test("причина 401 берётся из тела ответа, а не из одного кода", async () => {
+  const original = globalThis.fetch
+  globalThis.fetch = (async () =>
+    new Response('{"error":{"message":"Authentication Error, No api key passed in."}}', {
+      status: 401,
+    })) as typeof fetch
+  try {
+    await assert.rejects(fetchGroups("https://litellm.example/v1"), /HTTP 401[\s\S]*No api key passed in/)
+  } finally {
+    globalThis.fetch = original
+  }
 })

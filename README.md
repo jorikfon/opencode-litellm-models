@@ -96,14 +96,22 @@ When LiteLLM announces nothing, the plugin does not interfere.
 registered it. The plugin prints the reason right before that line:
 
 ```
-[litellm] litellm: could not read the model list (Error: model_group/info: HTTP 401); leaving the config as it is
+[litellm] litellm: could not read the model list (Error: model_group/info: HTTP 401
+{"error":{"message":"Authentication Error, No api key passed in.",…}}); leaving the config as it is
 ```
 
-- **401 while the key in the config is an `{env:…}` template** — opencode resolves that template
-  when it loads the config, and if the variable is missing *in the process that runs opencode*, it
-  resolves to an empty string and the request goes out without credentials. A desktop session that
-  has the variable and a non-interactive `ssh` session that doesn't will therefore behave
-  differently. Export the variable for the process that actually runs opencode.
+LiteLLM's own body is quoted, and its two 401s mean different things:
+
+- **`No api key passed in`** — the request went out without credentials. With an `{env:…}`
+  template in the config this is a missing variable: opencode resolves the template when it loads
+  the config, and an unset variable becomes an empty string. The variable has to be set *in the
+  process that runs opencode*, so a desktop session that exports it and an IDE or a
+  non-interactive `ssh` session that doesn't behave differently. The plugin makes its own HTTP
+  call, so `opencode auth login` does not cover it.
+- **`Unable to find token in cache or LiteLLM_VerificationTokenTable`** (`token_not_found_in_db`)
+  — credentials did arrive, but the proxy does not know them: revoked, rotated, or issued by
+  another proxy. The body echoes them masked, with only the last digits left, so you can tell
+  which one opencode actually sent.
 - **403, or an empty list** — the credentials are fine, but that team has no models on the proxy.
 - **No `[litellm]` line at all** — the plugin was not loaded: check the path and the exported name
   in `~/.config/opencode/plugin/litellm.ts`.

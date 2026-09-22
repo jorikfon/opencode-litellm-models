@@ -109,7 +109,12 @@ export async function fetchGroups(baseURL: string, apiKey?: string): Promise<Lit
   const res = await fetch(`${proxyRoot(baseURL)}/model_group/info`, {
     headers: apiKey ? { Authorization: `Bearer ${apiKey}` } : {},
   })
-  if (!res.ok) throw new Error(`model_group/info: HTTP ${res.status}`)
+  if (!res.ok) {
+    // Тело ответа LiteLLM отличает «ключ не передан» от «ключ не найден в базе»,
+    // а сам ключ в нём уже маскирован — без этого 401 не диагностируется.
+    const detail = (await res.text().catch(() => "")).trim().slice(0, 300)
+    throw new Error(`model_group/info: HTTP ${res.status}${detail ? ` ${detail}` : ""}`)
+  }
   const body = (await res.json()) as { data?: LiteLLMGroup[] }
   return body.data ?? []
 }
@@ -126,11 +131,13 @@ export const LitellmModels: Plugin = async (_input, options = {}) => {
       if (!provider) return
 
       const baseURL =
-        (typeof options.baseURL === "string" ? options.baseURL : undefined) ??
-        provider.options?.baseURL ??
+        (typeof options.baseURL === "string" ? options.baseURL : undefined) ||
+        provider.options?.baseURL ||
         process.env.LITELLM_BASE_URL
       if (!baseURL) return
-      const apiKey = provider.options?.apiKey ?? process.env.LITELLM_API_KEY
+      // Нераскрытый `{env:...}` доходит сюда как пустая строка (либо undefined),
+      // поэтому `||`: иначе пустое значение из конфига перекрывает переменную окружения.
+      const apiKey = provider.options?.apiKey || process.env.LITELLM_API_KEY
 
       try {
         const groups = await fetchGroups(baseURL, apiKey)
