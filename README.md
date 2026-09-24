@@ -83,6 +83,11 @@ So when LiteLLM announces a set for a model, the plugin drops a request-level
 `reasoningEffort` outside that set instead of forwarding it — the model's own default is used.
 When LiteLLM announces nothing, the plugin does not interfere.
 
+A model with reasoning switched off on the deployment itself (`reasoning_effort: "none"`, `enable_thinking: false` or `thinking.type: "disabled"` in `litellm_params` of every deployment, as `/model/info` shows them) gets `reasoning: false`, so opencode shows no level menu for it — that
+is how `*-no-reasoning` groups look, even though LiteLLM reports `supports_reasoning: true` for
+them. Only those reasoning fields are read from `litellm_params`; the rest of it (provider
+credentials) is neither kept nor logged.
+
 ## Notes
 
 - Embeddings, rerank and other non-chat modes are filtered out; a model with `mode: null` is kept

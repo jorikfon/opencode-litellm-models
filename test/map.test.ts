@@ -89,3 +89,18 @@ test("только модели, доступные ключу, цена кэш�
   // /model/info недоступен → список не сужается, как раньше
   assert.deepEqual(Object.keys(toModels(groups)), ["deepseek-v4-pro", "zai/glm-5.3"])
 })
+
+test("reasoning, выключенный на всех деплойментах, убирает меню уровней", () => {
+  const km = keyModels([
+    { model_name: "qwen3.8-flash-no-reasoning", litellm_params: { enable_thinking: false } },
+    { model_name: "deepseek-v4-flash-no-reasoning", litellm_params: { reasoning_effort: "none" } },
+    { model_name: "deepseek-v4-flash", litellm_params: {} },
+    { model_name: "mixed", litellm_params: { reasoning_effort: "none" } },
+    { model_name: "mixed", litellm_params: {} },
+  ])
+  const group: LiteLLMGroup = { model_group: "x", supports_reasoning: true }
+  assert.equal(toModel(group, {}, km.get("qwen3.8-flash-no-reasoning")).reasoning, false)
+  assert.equal(toModel(group, {}, km.get("deepseek-v4-flash-no-reasoning")).reasoning, false)
+  assert.equal(toModel(group, {}, km.get("deepseek-v4-flash")).reasoning, true)
+  assert.equal(toModel(group, {}, km.get("mixed")).reasoning, true)
+})
