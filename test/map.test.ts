@@ -1,6 +1,6 @@
 import { test } from "node:test"
 import assert from "node:assert/strict"
-import { allowedEffort, effortsByModel, fetchGroups, isChatGroup, proxyRoot, toModel, toModels, type LiteLLMGroup } from "../index.ts"
+import { allowedEffort, effortsByModel, fetchGroups, isChatGroup, keyModels, proxyRoot, toModel, toModels, type LiteLLMGroup } from "../index.ts"
 
 // Срез живого ответа LiteLLM /model_group/info, вместе с грязью:
 // mode=null у рабочей чат-модели, лимиты null, эмбеддинги в общем списке.
@@ -71,4 +71,21 @@ test("причина 401 берётся из тела ответа, а не из
   } finally {
     globalThis.fetch = original
   }
+})
+
+test("только модели, доступные ключу, цена кэша из /model/info", () => {
+  const groups: LiteLLMGroup[] = [
+    { model_group: "deepseek-v4-pro", mode: "chat" },
+    { model_group: "zai/glm-5.3", mode: "chat" },
+  ]
+  const allowed = keyModels([
+    { model_name: "deepseek-v4-pro", model_info: { cache_read_input_token_cost: 4.4e-8 } },
+    { model_name: "deepseek-v4-pro", model_info: { cache_read_input_token_cost: 9e-8 } },
+  ])
+  const models = toModels(groups, {}, allowed) as Record<string, { cost: { cache_read: number; cache_write: number } }>
+  assert.deepEqual(Object.keys(models), ["deepseek-v4-pro"])
+  assert.ok(Math.abs(models["deepseek-v4-pro"].cost.cache_read - 0.044) < 1e-9)
+  assert.equal(models["deepseek-v4-pro"].cost.cache_write, 0)
+  // /model/info недоступен → список не сужается, как раньше
+  assert.deepEqual(Object.keys(toModels(groups)), ["deepseek-v4-pro", "zai/glm-5.3"])
 })

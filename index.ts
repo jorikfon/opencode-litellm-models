@@ -45,8 +45,35 @@ export function isChatGroup(group: LiteLLMGroup): boolean {
   return !SKIP_MODES.has(String(group.mode ?? "").toLowerCase())
 }
 
+/** Один деплоймент из `GET /model/info`. `litellm_params` не читаем: там ссылки на ключи провайдеров. */
+export type LiteLLMDeployment = {
+  model_name: string
+  model_info?: {
+    cache_read_input_token_cost?: number | null
+    cache_creation_input_token_cost?: number | null
+  } | null
+}
+
+export type CacheCost = { cache_read: number; cache_write: number }
+
+/**
+ * Модели, доступные ключу, с ценой кэша. Первый деплоймент имени выигрывает.
+ * ponytail: при нескольких деплойментах с разной ценой берётся первая, не максимум.
+ */
+export function keyModels(deployments: LiteLLMDeployment[]): Map<string, CacheCost> {
+  const out = new Map<string, CacheCost>()
+  for (const d of deployments) {
+    if (out.has(d.model_name)) continue
+    out.set(d.model_name, {
+      cache_read: perMillion(d.model_info?.cache_read_input_token_cost),
+      cache_write: perMillion(d.model_info?.cache_creation_input_token_cost),
+    })
+  }
+  return out
+}
+
 /** Модель в формате `provider.<id>.models.<id>` конфига opencode. */
-export function toModel(group: LiteLLMGroup, opts: MapOptions = {}): Record<string, unknown> {
+export function toModel(group: LiteLLMGroup, opts: MapOptions = {}, cache?: CacheCost): Record<string, unknown> {
   const vision = group.supports_vision === true
   return {
     name: group.model_group,
@@ -57,6 +84,8 @@ export function toModel(group: LiteLLMGroup, opts: MapOptions = {}): Record<stri
     cost: {
       input: perMillion(group.input_cost_per_token),
       output: perMillion(group.output_cost_per_token),
+      cache_read: cache?.cache_read ?? 0,
+      cache_write: cache?.cache_write ?? 0,
     },
     limit: {
       context: toInt(group.max_input_tokens, opts.defaultContext ?? DEFAULT_CONTEXT),
@@ -70,9 +99,16 @@ export function toModel(group: LiteLLMGroup, opts: MapOptions = {}): Record<stri
   }
 }
 
-export function toModels(groups: LiteLLMGroup[], opts: MapOptions = {}): Record<string, unknown> {
+/** Чат-группы, которые ключ может вызвать. Без списка ключа (`undefined`) — все чат-группы. */
+export function toModels(
+  groups: LiteLLMGroup[],
+  opts: MapOptions = {},
+  allowed?: Map<string, CacheCost>,
+): Record<string, unknown> {
   return Object.fromEntries(
-    groups.filter(isChatGroup).map((group) => [group.model_group, toModel(group, opts)]),
+    groups
+      .filter((group) => isChatGroup(group) && (!allowed || allowed.has(group.model_group)))
+      .map((group) => [group.model_group, toModel(group, opts, allowed?.get(group.model_group))]),
   )
 }
 
@@ -119,6 +155,28 @@ export async function fetchGroups(baseURL: string, apiKey?: string): Promise<Lit
   return body.data ?? []
 }
 
+/**
+ * `/model_group/info` отдаёт все публичные группы, в том числе чужие для ключа (запрос к ним — 403),
+ * а `/model/info` — только деплойменты, доступные ключу, но без уровней reasoning. Берём пересечение.
+ * Если `/model/info` не отвечает или пуст — фильтра нет, как раньше.
+ */
+export async function fetchKeyModels(baseURL: string, apiKey?: string): Promise<Map<string, CacheCost> | undefined> {
+  try {
+    const res = await fetch(`${proxyRoot(baseURL)}/model/info`, {
+      headers: apiKey ? { Authorization: `Bearer ${apiKey}` } : {},
+      signal: AbortSignal.timeout(5_000),
+    })
+    if (!res.ok) throw new Error(`HTTP ${res.status}`)
+    const body = (await res.json()) as { data?: LiteLLMDeployment[] }
+    const models = keyModels(body.data ?? [])
+    if (models.size > 0) return models
+    throw new Error("empty list")
+  } catch (err) {
+    console.warn(`[litellm] model/info: ${err}; showing every model group, some may answer 403`)
+    return undefined
+  }
+}
+
 export const LitellmModels: Plugin = async (_input, options = {}) => {
   const providerID = typeof options.provider === "string" ? options.provider : "litellm"
   let efforts = new Map<string, string[]>()
@@ -140,12 +198,12 @@ export const LitellmModels: Plugin = async (_input, options = {}) => {
       const apiKey = provider.options?.apiKey || process.env.LITELLM_API_KEY
 
       try {
-        const groups = await fetchGroups(baseURL, apiKey)
+        const [groups, allowed] = await Promise.all([fetchGroups(baseURL, apiKey), fetchKeyModels(baseURL, apiKey)])
         efforts = effortsByModel(groups)
         const discovered = toModels(groups, {
           defaultContext: typeof options.defaultContext === "number" ? options.defaultContext : undefined,
           defaultOutput: typeof options.defaultOutput === "number" ? options.defaultOutput : undefined,
-        })
+        }, allowed)
         // Прописанное руками в opencode.json выигрывает у найденного.
         provider.models = { ...discovered, ...(provider.models ?? {}) }
       } catch (err) {

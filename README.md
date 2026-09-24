@@ -4,8 +4,11 @@ An [opencode](https://opencode.ai) plugin that fills in the models of a LiteLLM 
 You declare the provider once; every model the proxy serves you shows up in opencode — no
 per-model entries in `opencode.json`, nothing to update when the proxy changes.
 
-Models are read from LiteLLM's `GET /model_group/info`, which lists what your key's team
-actually has (unlike `/v1/model/info`, whose output depends on the key and is often empty).
+Models are read from LiteLLM's `GET /model_group/info` (limits, prices, reasoning levels) and
+narrowed to the ones `GET /model/info` lists for your key, so a model the key may not call does not
+show up only to answer 403. Prompt-cache prices come from `/model/info` too. If `/model/info` fails
+or comes back empty, every model group is shown, as before, and a `[litellm] model/info: …` line
+says why.
 
 ## Install
 
@@ -87,8 +90,8 @@ When LiteLLM announces nothing, the plugin does not interfere.
 - If the proxy is unreachable or answers with an error, the config is left untouched (a provider
   with an empty model list would not load at all) and a `[litellm] …` line on stderr names the
   cause.
-- Discovered ≠ callable: `/model_group/info` lists the team's models, and a key may still be
-  denied a particular one (403 at request time).
+- When `/model/info` is unavailable the list is not narrowed, and a model outside the key's team
+  answers 403 at request time.
 
 ## When no models show up
 
