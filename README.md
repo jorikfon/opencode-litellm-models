@@ -73,15 +73,15 @@ The key is taken from the provider's own options, else from `$LITELLM_API_KEY`.
 
 ## What it does with reasoning levels
 
-opencode offers a fixed menu of reasoning levels (`low`/`medium`/`high`/…) for every model that
-reports `reasoning: true`, and the config cannot narrow that menu. LiteLLM, meanwhile, publishes
-the levels a model really takes in `supported_reasoning_efforts`. Sending a level the provider
-does not take is a 400, which puts the deployment into cooldown and turns into 429s for everyone
-on that proxy.
-
-So when LiteLLM announces a set for a model, the plugin drops a request-level
-`reasoningEffort` outside that set instead of forwarding it — the model's own default is used.
-When LiteLLM announces nothing, the plugin does not interfere.
+LiteLLM publishes the levels a model really takes in `supported_reasoning_efforts`; sending a level
+the provider does not take is a 400, which puts the deployment into cooldown and turns into 429s for
+everyone on that proxy. opencode builds its own level menu per model, so the plugin writes the
+model's `variants`: levels outside LiteLLM's set get `{"disabled": true}`, levels opencode lacks
+(e.g. `max`) are added with that `reasoningEffort`. `none` gets no entry — it is the model without a
+level. The menu then shows exactly LiteLLM's levels (checked on opencode 1.18.32: deepseek-v4 and
+glm-5.3 show low/high/max). A request-level `reasoningEffort` outside the set is still dropped
+before it is sent, as a safety net. When LiteLLM announces nothing, neither the menu nor the request
+is touched.
 
 A model with reasoning switched off on the deployment itself (`reasoning_effort: "none"`, `enable_thinking: false` or `thinking.type: "disabled"` in `litellm_params` of every deployment, as `/model/info` shows them) gets `reasoning: false`, so opencode shows no level menu for it — that
 is how `*-no-reasoning` groups look, even though LiteLLM reports `supports_reasoning: true` for
