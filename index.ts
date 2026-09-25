@@ -92,14 +92,33 @@ export function keyModels(deployments: LiteLLMDeployment[]): Map<string, KeyMode
   return out
 }
 
+/** Уровни, которые opencode сам может предложить в меню (варианты модели). */
+const OPENCODE_LEVELS = ["minimal", "low", "medium", "high", "xhigh", "max"]
+
+/**
+ * Меню уровней opencode под объявленный LiteLLM набор: чужие уровни выключаем (`disabled`),
+ * недостающие добавляем с тем же `reasoningEffort`. `none` в меню не нужен — это модель без уровня.
+ * Без объявленного набора меню не трогаем.
+ */
+export function variants(efforts: string[] | null | undefined): Record<string, Record<string, unknown>> | undefined {
+  if (!efforts || efforts.length === 0) return undefined
+  const out: Record<string, Record<string, unknown>> = {}
+  for (const level of OPENCODE_LEVELS) if (!efforts.includes(level)) out[level] = { disabled: true }
+  for (const effort of efforts) if (effort !== "none") out[effort] = { reasoningEffort: effort }
+  return out
+}
+
 /** Модель в формате `provider.<id>.models.<id>` конфига opencode. */
 export function toModel(group: LiteLLMGroup, opts: MapOptions = {}, cache?: KeyModel): Record<string, unknown> {
   const vision = group.supports_vision === true
+  // У `*-no-reasoning` LiteLLM объявляет supports_reasoning, но деплоймент его выключает: меню уровней не нужно.
+  const reasoning = group.supports_reasoning === true && !cache?.noReasoning
+  const menu = reasoning ? variants(group.supported_reasoning_efforts) : undefined
   return {
     name: group.model_group,
     attachment: vision,
-    // У `*-no-reasoning` LiteLLM объявляет supports_reasoning, но деплоймент его выключает: меню уровней не нужно.
-    reasoning: group.supports_reasoning === true && !cache?.noReasoning,
+    reasoning,
+    ...(menu ? { variants: menu } : {}),
     temperature: true,
     tool_call: group.supports_function_calling !== false,
     cost: {

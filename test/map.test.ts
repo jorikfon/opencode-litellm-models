@@ -1,6 +1,6 @@
 import { test } from "node:test"
 import assert from "node:assert/strict"
-import { allowedEffort, effortsByModel, fetchGroups, isChatGroup, keyModels, proxyRoot, toModel, toModels, type LiteLLMGroup } from "../index.ts"
+import { allowedEffort, effortsByModel, fetchGroups, isChatGroup, keyModels, proxyRoot, variants, toModel, toModels, type LiteLLMGroup } from "../index.ts"
 
 // Срез живого ответа LiteLLM /model_group/info, вместе с грязью:
 // mode=null у рабочей чат-модели, лимиты null, эмбеддинги в общем списке.
@@ -103,4 +103,17 @@ test("reasoning, выключенный на всех деплойментах, 
   assert.equal(toModel(group, {}, km.get("deepseek-v4-flash-no-reasoning")).reasoning, false)
   assert.equal(toModel(group, {}, km.get("deepseek-v4-flash")).reasoning, true)
   assert.equal(toModel(group, {}, km.get("mixed")).reasoning, true)
+})
+
+test("меню уровней opencode сводится к объявленным LiteLLM", () => {
+  // deepseek-v4: none/low/high/max — medium и прочие выключены, max добавлен
+  assert.deepEqual(variants(["none", "low", "high", "max"]), {
+    minimal: { disabled: true }, medium: { disabled: true }, xhigh: { disabled: true },
+    low: { reasoningEffort: "low" }, high: { reasoningEffort: "high" }, max: { reasoningEffort: "max" },
+  })
+  assert.equal(variants(null), undefined)
+  const m = toModel({ model_group: "d", supports_reasoning: true, supported_reasoning_efforts: ["low", "high"] }) as { variants?: object }
+  assert.ok(m.variants)
+  const off = toModel({ model_group: "d", supports_reasoning: false, supported_reasoning_efforts: ["low"] }) as { variants?: object }
+  assert.equal(off.variants, undefined)
 })
